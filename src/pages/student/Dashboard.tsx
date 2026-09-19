@@ -123,18 +123,18 @@ const StudentDashboard: React.FC = () => {
       </div>
 
       {/* Metric Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3.5">
         {statCards.map((stat, index) => (
           <div 
             key={index} 
-            className="bg-white p-4 sm:p-5 rounded-2xl shadow-xs border border-slate-200/60 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+            className="bg-white p-3.5 sm:p-5 rounded-2xl shadow-xs border border-slate-200/60 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
           >
-            <div className={clsx("w-9 h-9 rounded-xl p-2 flex items-center justify-center mb-3 border", stat.bg)}>
-              <stat.icon className={clsx("w-5 h-5", stat.color)} />
+            <div className={clsx("w-8 h-8 sm:w-9 sm:h-9 rounded-xl p-1.5 sm:p-2 flex items-center justify-center mb-2.5 sm:mb-3 border", stat.bg)}>
+              <stat.icon className={clsx("w-4 h-4 sm:w-5 sm:h-5", stat.color)} />
             </div>
             <div>
-              <span className="text-xs font-medium text-slate-500 block">{stat.title}</span>
-              <p className="text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">{stat.value}</p>
+              <span className="text-[11px] sm:text-xs font-medium text-slate-500 block">{stat.title}</span>
+              <p className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight mt-0.5">{stat.value}</p>
             </div>
           </div>
         ))}

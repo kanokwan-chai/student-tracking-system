@@ -289,8 +289,10 @@ const TeacherDashboard: React.FC = () => {
               </div>
             </div>
             
-            {/* Clean, Non-overflowing Table */}
-            <div className="overflow-x-auto">
+            {/* Responsive View: Desktop Table (hidden on mobile) & Mobile Student Cards (hidden on desktop) */}
+            
+            {/* 1. Desktop Table (md:block) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-100 text-slate-500 text-[11px] font-bold">
@@ -391,22 +393,104 @@ const TeacherDashboard: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* 2. Mobile Student Cards (md:hidden) */}
+            <div className="block md:hidden divide-y divide-slate-100">
+              {filteredStudents.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 font-medium text-xs">
+                  ไม่พบข้อมูลนักเรียนที่ตรงตามเงื่อนไข
+                </div>
+              ) : (
+                filteredStudents.map((student: any) => (
+                  <div key={student.student_id} className="p-4 space-y-3 hover:bg-slate-50/50 transition-colors">
+                    {/* Top Row: Avatar, Name, Grade Badge */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-xs shrink-0 shadow-xs">
+                          {student.name.charAt(0)}
+                        </div>
+                        <div>
+                          <h4 className="font-extrabold text-slate-900 text-sm">{student.name}</h4>
+                          <p className="text-xs text-slate-400 font-medium">รหัสประจำตัว: <span className="font-bold text-slate-700">{student.student_id}</span></p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-xl text-xs font-extrabold bg-indigo-50 text-indigo-900 border border-indigo-100 shadow-2xs">
+                          เกรด {student.grade}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Status & Attendance Row */}
+                    <div className="flex flex-wrap items-center justify-between text-xs gap-2 pt-1 border-t border-slate-100">
+                      <span className={clsx(
+                        "px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1",
+                        student.missingCount > 0 ? "bg-amber-100 text-amber-800" : "bg-emerald-100 text-emerald-800"
+                      )}>
+                        {student.missingCount > 0 ? `⚠️ มีงานค้าง ${student.missingCount} รายการ` : '✅ งานครบถ้วน'}
+                      </span>
+
+                      <div className="flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[11px]">มา {student.presentCount}</span>
+                        <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[11px]">สาย {student.lateCount}</span>
+                        <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 font-bold text-[11px]">ขาด {student.absentCount}</span>
+                      </div>
+                    </div>
+
+                    {/* Score Breakdown Grid */}
+                    <div className="grid grid-cols-5 gap-1 text-center text-[11px] bg-slate-50/80 p-2.5 rounded-xl border border-slate-100">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">งาน 30%</span>
+                        <span className="font-bold text-slate-800">{student.scoreTasks}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">สอบ 20%</span>
+                        <span className="font-bold text-slate-800">{student.scoreQuizzes}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">จิตพิสัย</span>
+                        <span className="font-bold text-slate-800">{student.scoreBehavior}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">ปลายภาค</span>
+                        <span className="font-bold text-slate-800">{student.scoreFinal}</span>
+                      </div>
+                      <div className="bg-indigo-100/60 rounded-lg p-0.5">
+                        <span className="text-indigo-600 block text-[10px] font-bold">รวม</span>
+                        <span className="font-extrabold text-indigo-900">{student.totalScore}</span>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <button 
+                      onClick={() => {
+                        setSelectedStudentForModal(student);
+                        setModalActiveTab('attendance');
+                      }}
+                      className="w-full text-center text-indigo-600 font-bold text-xs bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 py-2.5 rounded-xl transition-all shadow-2xs"
+                    >
+                      ดูประวัติ & รายละเอียดชิ้นงาน
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </>
       )}
 
       {/* 360-Degree Comprehensive Student Profile Modal */}
       {selectedStudentForModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 transition-opacity">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50 transition-opacity">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-4 sm:p-6 md:p-8 shadow-2xl border border-slate-100 space-y-5 max-h-[92vh] overflow-y-auto">
             {/* Modal Header */}
-            <div className="flex justify-between items-start border-b border-slate-100 pb-5">
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-purple-600 text-white font-extrabold flex items-center justify-center text-lg shadow-md shrink-0">
+            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-indigo-600 text-white font-extrabold flex items-center justify-center text-base sm:text-lg shadow-md shrink-0">
                   {selectedStudentForModal.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="text-xl font-extrabold text-slate-900">{selectedStudentForModal.name}</h3>
+                  <h3 className="text-lg sm:text-xl font-extrabold text-slate-900">{selectedStudentForModal.name}</h3>
                   <p className="text-xs font-semibold text-slate-500">รหัสนักเรียน: <span className="text-slate-800 font-bold">{selectedStudentForModal.student_id}</span> | ห้องเรียน: <span className="text-slate-800 font-bold">{selectedClass}</span></p>
                 </div>
               </div>
@@ -419,35 +503,35 @@ const TeacherDashboard: React.FC = () => {
             </div>
 
             {/* Quick Stat Summary Row */}
-            <div className="grid grid-cols-5 gap-2 text-center text-xs">
-              <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-2xl border border-emerald-100">
-                <span className="block font-semibold mb-0.5">มาเรียน</span>
-                <span className="text-base font-extrabold">{selectedStudentForModal.presentCount}</span>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2 text-center text-xs">
+              <div className="bg-emerald-50 text-emerald-700 p-2 sm:p-2.5 rounded-2xl border border-emerald-100">
+                <span className="block font-semibold mb-0.5 text-[11px]">มาเรียน</span>
+                <span className="text-sm sm:text-base font-extrabold">{selectedStudentForModal.presentCount}</span>
               </div>
-              <div className="bg-amber-50 text-amber-700 p-2.5 rounded-2xl border border-amber-100">
-                <span className="block font-semibold mb-0.5">มาสาย</span>
-                <span className="text-base font-extrabold">{selectedStudentForModal.lateCount}</span>
+              <div className="bg-amber-50 text-amber-700 p-2 sm:p-2.5 rounded-2xl border border-amber-100">
+                <span className="block font-semibold mb-0.5 text-[11px]">มาสาย</span>
+                <span className="text-sm sm:text-base font-extrabold">{selectedStudentForModal.lateCount}</span>
               </div>
-              <div className="bg-purple-50 text-purple-700 p-2.5 rounded-2xl border border-purple-100">
-                <span className="block font-semibold mb-0.5">ลากิจ</span>
-                <span className="text-base font-extrabold">{selectedStudentForModal.leaveBusinessCount || 0}</span>
+              <div className="bg-purple-50 text-purple-700 p-2 sm:p-2.5 rounded-2xl border border-purple-100">
+                <span className="block font-semibold mb-0.5 text-[11px]">ลากิจ</span>
+                <span className="text-sm sm:text-base font-extrabold">{selectedStudentForModal.leaveBusinessCount || 0}</span>
               </div>
-              <div className="bg-pink-50 text-pink-700 p-2.5 rounded-2xl border border-pink-100">
-                <span className="block font-semibold mb-0.5">ลาป่วย</span>
-                <span className="text-base font-extrabold">{selectedStudentForModal.leaveSickCount || 0}</span>
+              <div className="bg-pink-50 text-pink-700 p-2 sm:p-2.5 rounded-2xl border border-pink-100">
+                <span className="block font-semibold mb-0.5 text-[11px]">ลาป่วย</span>
+                <span className="text-sm sm:text-base font-extrabold">{selectedStudentForModal.leaveSickCount || 0}</span>
               </div>
-              <div className="bg-rose-50 text-rose-700 p-2.5 rounded-2xl border border-rose-100">
-                <span className="block font-semibold mb-0.5">ขาดเรียน</span>
-                <span className="text-base font-extrabold">{selectedStudentForModal.absentCount}</span>
+              <div className="bg-rose-50 text-rose-700 p-2 sm:p-2.5 rounded-2xl border border-rose-100 col-span-2 sm:col-span-1">
+                <span className="block font-semibold mb-0.5 text-[11px]">ขาดเรียน</span>
+                <span className="text-sm sm:text-base font-extrabold">{selectedStudentForModal.absentCount}</span>
               </div>
             </div>
 
             {/* Modal Tabs */}
-            <div className="flex border-b border-slate-100">
+            <div className="flex border-b border-slate-100 overflow-x-auto whitespace-nowrap scrollbar-none">
               <button
                 onClick={() => setModalActiveTab('attendance')}
                 className={clsx(
-                  "px-4 py-2.5 text-xs font-bold transition-all border-b-2",
+                  "px-3.5 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0",
                   modalActiveTab === 'attendance'
                     ? "border-indigo-600 text-indigo-600"
                     : "border-transparent text-slate-400 hover:text-slate-600"
@@ -458,7 +542,7 @@ const TeacherDashboard: React.FC = () => {
               <button
                 onClick={() => setModalActiveTab('tasks')}
                 className={clsx(
-                  "px-4 py-2.5 text-xs font-bold transition-all border-b-2",
+                  "px-3.5 py-2.5 text-xs font-bold transition-all border-b-2 shrink-0",
                   modalActiveTab === 'tasks'
                     ? "border-indigo-600 text-indigo-600"
                     : "border-transparent text-slate-400 hover:text-slate-600"
