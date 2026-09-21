@@ -11,13 +11,14 @@ const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId:
   const candidates = [
     `${subjName}_${tabSuffix}`,
     `${subjName}_${roomShort}_${tabSuffix}`,
-    `${subjName}_${classId}_${tabSuffix}`
+    `${subjName}_${classId}_${tabSuffix}`,
+    tabSuffix
   ];
 
   for (const tab of candidates) {
     try {
       const data = await fetchSheetData(targetSheetId, tab);
-      if (data && (data.length > 0 ? data[0]['รหัสรายวิชา'] === undefined : true)) {
+      if (data && data.length > 0) {
         return data;
       }
     } catch (e) {
@@ -27,12 +28,27 @@ const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId:
   return [];
 };
 
-// Helper to filter out summary columns like "รวมคะแนน", "ลำดับ", etc.
+// Helper to filter out summary and metadata columns
 const isTaskKey = (key: string) => {
   if (!key) return false;
-  if (key.includes('ลำดับ') || key.includes('รวมคะแนน') || key.includes('รวม') || key.includes('เก็บจริง') || key.includes('รหัสนักเรียน')) {
+  const k = key.trim();
+  if (
+    k.includes('ลำดับ') || 
+    k.includes('รวมคะแนน') || 
+    k.includes('รวม') || 
+    k.includes('เก็บจริง') || 
+    k.includes('รหัสนักเรียน') ||
+    k.includes('student_id') ||
+    k.includes('ชื่อ') ||
+    k.includes('นามสกุล') ||
+    k.includes('ชื่อเล่น') ||
+    k.includes('รหัสห้องเรียน') ||
+    k.includes('ห้องเรียน') ||
+    k.startsWith('Column')
+  ) {
     return false;
   }
+  return true;
 };
 
 export const api = {
