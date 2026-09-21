@@ -8,9 +8,11 @@ const USE_MOCK = false;
 // Helper to fetch subject specific tab with candidate names
 const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId: string, tabSuffix: string) => {
   const roomShort = (classId || '').replace('ปวช.', '').trim();
+  const roomEscaped = roomShort.replace('/', '\\/');
   const candidates = [
     `${subjName}_${tabSuffix}`,
     `${subjName}_${roomShort}_${tabSuffix}`,
+    `${subjName}_${roomEscaped}_${tabSuffix}`,
     `${subjName}_${classId}_${tabSuffix}`,
     tabSuffix
   ];
