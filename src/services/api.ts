@@ -62,14 +62,48 @@ const fetchMasterStudents = async () => {
   const allResults = await Promise.all(
     SHEET_IDS.map(id => fetchSheetData(id, 'รวมรายชื่อนักเรียน').catch(() => []))
   );
-  return allResults.flat();
+  const flat = allResults.flat();
+  const uniqueMap = new Map<string, any>();
+  flat.forEach(item => {
+    const sid = String(item['รหัสนักเรียน'] || item['student_id'] || '').trim();
+    if (sid && !uniqueMap.has(sid)) {
+      uniqueMap.set(sid, item);
+    }
+  });
+  return Array.from(uniqueMap.values());
 };
 
 const fetchAllSubjects = async () => {
   const allResults = await Promise.all(
     SHEET_IDS.map(id => fetchSheetData(id, 'รวมรายวิชา').catch(() => []))
   );
-  return allResults.flat();
+  const flat = allResults.flat();
+  const uniqueMap = new Map<string, any>();
+  flat.forEach(item => {
+    const code = String(item['รหัสรายวิชา'] || item['ชื่อรายวิชา'] || '').trim();
+    const room = String(item['ห้องเรียน'] || item['รหัสห้องเรียน'] || '').trim();
+    const key = `${code}_${room}`;
+    if (code && room && !uniqueMap.has(key)) {
+      uniqueMap.set(key, item);
+    }
+  });
+  return Array.from(uniqueMap.values());
+};
+
+// Helper to normalize room strings for comparison
+const normalizeRoom = (room: string) => {
+  if (!room) return '';
+  return String(room)
+    .replace(/^ปวช\./i, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
+};
+
+// Helper to compare room names robustly and strictly
+const isSameRoom = (room1: string, room2: string) => {
+  if (!room1 || !room2) return false;
+  return normalizeRoom(room1) === normalizeRoom(room2);
 };
 
 export const api = {
@@ -151,9 +185,8 @@ export const api = {
 
     const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
-      s['ห้องเรียน'] === studentClass || 
-      s['รหัสห้องเรียน'] === studentClass ||
-      s['ห้องเรียน'] === studentInfo['ห้องเรียน']
+      isSameRoom(s['ห้องเรียน'], studentClass) || 
+      isSameRoom(s['รหัสห้องเรียน'], studentClass)
     );
 
     let missingAssignments = 0;
@@ -254,9 +287,8 @@ export const api = {
 
     const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
-      s['ห้องเรียน'] === studentClass || 
-      s['รหัสห้องเรียน'] === studentClass ||
-      s['ห้องเรียน'] === studentInfo['ห้องเรียน']
+      isSameRoom(s['ห้องเรียน'], studentClass) || 
+      isSameRoom(s['รหัสห้องเรียน'], studentClass)
     );
 
     const results = await Promise.all(mySubjects.map(async (subj: any) => {
@@ -294,9 +326,8 @@ export const api = {
     const studentClass = studentInfo['ห้องเรียน'] || studentInfo['รหัสห้องเรียน'];
     const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
-      s['ห้องเรียน'] === studentClass || 
-      s['รหัสห้องเรียน'] === studentClass ||
-      s['ห้องเรียน'] === studentInfo['ห้องเรียน']
+      isSameRoom(s['ห้องเรียน'], studentClass) || 
+      isSameRoom(s['รหัสห้องเรียน'], studentClass)
     );
     
     let assignmentsList: any[] = [];
@@ -353,9 +384,8 @@ export const api = {
     const studentClass = studentInfo['ห้องเรียน'] || studentInfo['รหัสห้องเรียน'];
     const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
-      s['ห้องเรียน'] === studentClass || 
-      s['รหัสห้องเรียน'] === studentClass ||
-      s['ห้องเรียน'] === studentInfo['ห้องเรียน']
+      isSameRoom(s['ห้องเรียน'], studentClass) || 
+      isSameRoom(s['รหัสห้องเรียน'], studentClass)
     );
 
     let quizzesResult: any[] = [];
@@ -414,7 +444,10 @@ export const api = {
     
     // 1. Fetch master list to find the correct Sheet ID and Subject Name
     const subjectsRaw = await fetchAllSubjects();
-    const subjectRow = subjectsRaw.find((s: any) => s['ชื่อรายวิชา'] === subjectName && s['ห้องเรียน'] === classId);
+    const subjectRow = subjectsRaw.find((s: any) => 
+      String(s['ชื่อรายวิชา'] || '').trim() === String(subjectName).trim() && 
+      (isSameRoom(s['ห้องเรียน'], classId) || isSameRoom(s['รหัสห้องเรียน'], classId))
+    );
     
     if (!subjectRow) throw new Error('ไม่พบข้อมูลรายวิชานี้ในชีตรวม');
 
@@ -424,17 +457,16 @@ export const api = {
       fetchSubjectTab(targetSheetId, subjectName, classId, 'ตัดเกรด'),
       fetchSubjectTab(targetSheetId, subjectName, classId, 'เข้าเรียน'),
       fetchSubjectTab(targetSheetId, subjectName, classId, 'คะแนนเก็บรายหน่วย'),
-      fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน').catch(() => [])
+      fetchMasterStudents()
     ]);
 
     // Build map of all students for this class
     const studentMap = new Map<string, any>();
 
     // Add students from master student list
-    const roomShort = (classId || '').replace('ปวช.', '').trim();
     masterStudents.forEach((ms: any) => {
       const msRoom = ms['ห้องเรียน'] || ms['รหัสห้องเรียน'] || '';
-      if (msRoom === classId || msRoom === roomShort || msRoom.includes(roomShort)) {
+      if (isSameRoom(msRoom, classId)) {
         const rawId = ms['รหัสนักเรียน'] || ms['student_id'];
         if (rawId) {
           const stdId = String(rawId).trim();
