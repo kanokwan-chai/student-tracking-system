@@ -400,23 +400,75 @@ export const api = {
     if (!subjectRow) throw new Error('ไม่พบข้อมูลรายวิชานี้ในชีตรวม');
 
     const targetSheetId = subjectRow['Sheet ID'] || subjectRow['ลิงก์'] || subjectRow['Link'] || SHEET_IDS[0];
-    
-    const cutGradeTab = `${subjectName}_ตัดเกรด`;
-    const attendanceTab = `${subjectName}_เข้าเรียน`;
-    const assignmentTab = `${subjectName}_คะแนนเก็บรายหน่วย`;
 
-    const [grades, attendances, assignments] = await Promise.all([
-      fetchSheetData(targetSheetId, cutGradeTab),
-      fetchSheetData(targetSheetId, attendanceTab),
-      fetchSheetData(targetSheetId, assignmentTab).catch(() => [])
+    const [grades, attendances, assignments, masterStudents] = await Promise.all([
+      fetchSubjectTab(targetSheetId, subjectName, classId, 'ตัดเกรด'),
+      fetchSubjectTab(targetSheetId, subjectName, classId, 'เข้าเรียน'),
+      fetchSubjectTab(targetSheetId, subjectName, classId, 'คะแนนเก็บรายหน่วย'),
+      fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน').catch(() => [])
     ]);
-    
-    const studentsData = grades.map((g: any) => {
-       const rawId = g['รหัสนักเรียน'] || g['student_id'];
-       if (!rawId) return null;
-       const stdId = String(rawId);
 
-       const att = attendances.find((a: any) => String(a['รหัสนักเรียน'] || a['student_id'] || '') === stdId) || {};
+    // Build map of all students for this class
+    const studentMap = new Map<string, any>();
+
+    // Add students from master student list
+    const roomShort = (classId || '').replace('ปวช.', '').trim();
+    masterStudents.forEach((ms: any) => {
+      const msRoom = ms['ห้องเรียน'] || ms['รหัสห้องเรียน'] || '';
+      if (msRoom === classId || msRoom === roomShort || msRoom.includes(roomShort)) {
+        const rawId = ms['รหัสนักเรียน'] || ms['student_id'];
+        if (rawId) {
+          const stdId = String(rawId).trim();
+          studentMap.set(stdId, {
+            student_id: stdId,
+            name: `${ms['ชื่อ'] || ''} ${ms['นามสกุล'] || ''}`.trim() || `นักเรียน ${stdId}`
+          });
+        }
+      }
+    });
+
+    // Add/merge students from grades tab
+    grades.forEach((g: any) => {
+      const rawId = g['รหัสนักเรียน'] || g['student_id'];
+      if (rawId) {
+        const stdId = String(rawId).trim();
+        const existing = studentMap.get(stdId) || { student_id: stdId };
+        const gName = `${g['ชื่อ'] || ''} ${g['นามสกุล'] || ''}`.trim();
+        if (gName) existing.name = gName;
+        existing.gradeRow = g;
+        studentMap.set(stdId, existing);
+      }
+    });
+
+    // Add/merge students from attendances tab
+    attendances.forEach((a: any) => {
+      const rawId = a['รหัสนักเรียน'] || a['student_id'];
+      if (rawId) {
+        const stdId = String(rawId).trim();
+        const existing = studentMap.get(stdId) || { student_id: stdId };
+        const aName = `${a['ชื่อ'] || ''} ${a['นามสกุล'] || ''}`.trim();
+        if (aName && !existing.name) existing.name = aName;
+        studentMap.set(stdId, existing);
+      }
+    });
+
+    // Add/merge students from assignments tab
+    assignments.forEach((asg: any) => {
+      const rawId = asg['รหัสนักเรียน'] || asg['student_id'];
+      if (rawId) {
+        const stdId = String(rawId).trim();
+        const existing = studentMap.get(stdId) || { student_id: stdId };
+        const asgName = `${asg['ชื่อ'] || ''} ${asg['นามสกุล'] || ''}`.trim();
+        if (asgName && !existing.name) existing.name = asgName;
+        studentMap.set(stdId, existing);
+      }
+    });
+
+    const studentsData = Array.from(studentMap.values()).map((s: any) => {
+       const stdId = s.student_id;
+       const g = s.gradeRow || grades.find((gRow: any) => String(gRow['รหัสนักเรียน'] || gRow['student_id'] || '').trim() === stdId) || {};
+
+       const att = attendances.find((a: any) => String(a['รหัสนักเรียน'] || a['student_id'] || '').trim() === stdId) || {};
        let lateCount = 0;
        let absentCount = 0;
        let presentCount = 0;
@@ -443,7 +495,7 @@ export const api = {
          }
        });
 
-       const myTasks = assignments.find((t: any) => String(t['รหัสนักเรียน'] || t['student_id'] || '') === stdId) || {};
+       const myTasks = assignments.find((t: any) => String(t['รหัสนักเรียน'] || t['student_id'] || '').trim() === stdId) || {};
        let missingCount = 0;
        Object.keys(myTasks).forEach(key => {
          if (isTaskKey(key)) {
@@ -475,7 +527,7 @@ export const api = {
 
        return {
          student_id: stdId,
-         name: `${g['ชื่อ'] || ''} ${g['นามสกุล'] || ''}`.trim(),
+         name: s.name || `นักเรียน ${stdId}`,
          missingCount,
          presentCount,
          lateCount,
@@ -491,7 +543,7 @@ export const api = {
          totalScore: g['คะแนนรวม (ตัดเกรด)'] || 0,
          grade: g['เกรด'] || '-'
        };
-    }).filter(Boolean);
+    });
 
     let maxScore = 0;
     let minScore = 100;

@@ -159,6 +159,15 @@ export const mockApi = {
         presentCount,
         absentCount,
         lateCount,
+        leaveBusinessCount: 0,
+        leaveSickCount: 0,
+        scoreTasks: sScore ? (sScore * 0.3).toFixed(0) : '-',
+        scoreQuizzes: sScore ? (sScore * 0.2).toFixed(0) : '-',
+        scoreBehavior: sScore ? (sScore * 0.2).toFixed(0) : '-',
+        scoreFinal: sScore ? (sScore * 0.3).toFixed(0) : '-',
+        grade: sScore >= 80 ? '4' : (sScore >= 70 ? '3' : '2'),
+        attendanceDetails: [],
+        taskDetails: [],
         totalScore: sScore
       };
     });
