@@ -110,7 +110,11 @@ export const mockApi = {
 
   getTeacherSubjects: async (teacherId: string) => {
     await delay(200);
-    return MOCK_SUBJECTS.filter(s => s.teacher_id === teacherId);
+    return MOCK_SUBJECTS.filter(s => s.teacher_id === teacherId).map(s => ({
+      subject_id: s.subject_id,
+      name: s.name,
+      class_id: 'ปวช.1/1'
+    }));
   },
 
   getTeacherDashboard: async (subjectId: string, classId: string) => {

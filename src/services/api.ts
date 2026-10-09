@@ -57,10 +57,25 @@ const isTaskKey = (key: string) => {
   return true;
 };
 
+// Helpers to query across all configured Google Sheet IDs
+const fetchMasterStudents = async () => {
+  const allResults = await Promise.all(
+    SHEET_IDS.map(id => fetchSheetData(id, 'รวมรายชื่อนักเรียน').catch(() => []))
+  );
+  return allResults.flat();
+};
+
+const fetchAllSubjects = async () => {
+  const allResults = await Promise.all(
+    SHEET_IDS.map(id => fetchSheetData(id, 'รวมรายวิชา').catch(() => []))
+  );
+  return allResults.flat();
+};
+
 export const api = {
   getAvailableSubjectsForLogin: async () => {
     try {
-      const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+      const subjectsRaw = await fetchAllSubjects();
       const uniqueNames = Array.from(new Set(subjectsRaw.map((s: any) => s['ชื่อรายวิชา']).filter(Boolean)));
       return uniqueNames as string[];
     } catch (e) {
@@ -82,8 +97,8 @@ export const api = {
       return { id: 'teacher1', name: 'ครูกนกวรรณ ชัยชนะ', role: 'teacher' as Role };
     }
 
-    // Student login: fetch master student list
-    const studentsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน');
+    // Student login: fetch master student list across ALL Sheet IDs
+    const studentsRaw = await fetchMasterStudents();
 
     const student = studentsRaw.find((s: any) => {
       const sid = String(s['รหัสนักเรียน'] || s['student_id'] || '').trim();
@@ -127,14 +142,14 @@ export const api = {
   getStudentDashboard: async (studentId: string) => {
     if (USE_MOCK) return mockApi.getStudentDashboard(studentId);
     
-    const studentsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน');
-    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '') === String(studentId));
+    const studentsRaw = await fetchMasterStudents();
+    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '').trim() === String(studentId).trim());
     
     if (!studentInfo) return mockApi.getStudentDashboard(studentId);
 
     const studentClass = studentInfo['ห้องเรียน'] || studentInfo['รหัสห้องเรียน'];
 
-    const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+    const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
       s['ห้องเรียน'] === studentClass || 
       s['รหัสห้องเรียน'] === studentClass ||
@@ -231,13 +246,13 @@ export const api = {
   getStudentSubjects: async (studentId: string) => {
     if (USE_MOCK) return mockApi.getStudentSubjects(studentId);
 
-    const studentsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน');
-    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '') === String(studentId));
+    const studentsRaw = await fetchMasterStudents();
+    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '').trim() === String(studentId).trim());
     if (!studentInfo) return [];
 
     const studentClass = studentInfo['ห้องเรียน'] || studentInfo['รหัสห้องเรียน'];
 
-    const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+    const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
       s['ห้องเรียน'] === studentClass || 
       s['รหัสห้องเรียน'] === studentClass ||
@@ -250,7 +265,7 @@ export const api = {
       const classId = subj['ห้องเรียน'] || studentClass;
 
       const grades = await fetchSubjectTab(targetSheetId, subjName, classId, 'ตัดเกรด');
-      const myGrade = grades.find((g: any) => String(g['รหัสนักเรียน'] || g['student_id'] || '') === String(studentId)) || {};
+      const myGrade = grades.find((g: any) => String(g['รหัสนักเรียน'] || g['student_id'] || '').trim() === String(studentId).trim()) || {};
 
       return {
         subject_id: subj['รหัสรายวิชา'] || 'SUBJ-01',
@@ -272,12 +287,12 @@ export const api = {
   getStudentAssignments: async (studentId: string) => {
     if (USE_MOCK) return mockApi.getStudentAssignments(studentId);
     
-    const studentsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน');
-    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '') === String(studentId));
+    const studentsRaw = await fetchMasterStudents();
+    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '').trim() === String(studentId).trim());
     if (!studentInfo) return [];
     
     const studentClass = studentInfo['ห้องเรียน'] || studentInfo['รหัสห้องเรียน'];
-    const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+    const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
       s['ห้องเรียน'] === studentClass || 
       s['รหัสห้องเรียน'] === studentClass ||
@@ -292,7 +307,7 @@ export const api = {
       const classId = subj['ห้องเรียน'] || studentClass;
       
       const tasks = await fetchSubjectTab(targetSheetId, subjName, classId, 'คะแนนเก็บรายหน่วย');
-      const myTasks = tasks.find((t: any) => String(t['รหัสนักเรียน'] || t['student_id'] || '') === String(studentId));
+      const myTasks = tasks.find((t: any) => String(t['รหัสนักเรียน'] || t['student_id'] || '').trim() === String(studentId).trim());
       
       if (myTasks) {
          for (const key of Object.keys(myTasks)) {
@@ -331,12 +346,12 @@ export const api = {
   getStudentQuizzes: async (studentId: string) => {
     if (USE_MOCK) return [];
 
-    const studentsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายชื่อนักเรียน');
-    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '') === String(studentId));
+    const studentsRaw = await fetchMasterStudents();
+    const studentInfo = studentsRaw.find((s: any) => String(s['รหัสนักเรียน'] || s['student_id'] || '').trim() === String(studentId).trim());
     if (!studentInfo) return [];
 
     const studentClass = studentInfo['ห้องเรียน'] || studentInfo['รหัสห้องเรียน'];
-    const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+    const subjectsRaw = await fetchAllSubjects();
     const mySubjects = subjectsRaw.filter((s: any) => 
       s['ห้องเรียน'] === studentClass || 
       s['รหัสห้องเรียน'] === studentClass ||
@@ -351,7 +366,7 @@ export const api = {
       const classId = subj['ห้องเรียน'] || studentClass;
 
       const quizData = await fetchSubjectTab(targetSheetId, subjName, classId, 'คะแนนสอบย่อย 20 %');
-      const myRow = quizData.find((q: any) => String(q['รหัสนักเรียน'] || q['student_id'] || '') === String(studentId));
+      const myRow = quizData.find((q: any) => String(q['รหัสนักเรียน'] || q['student_id'] || '').trim() === String(studentId).trim());
 
       let units: { title: string; score: any }[] = [];
       let totalScore = '-';
@@ -386,11 +401,11 @@ export const api = {
 
   getTeacherSubjects: async (teacherId: string) => {
     if (USE_MOCK) return mockApi.getTeacherSubjects(teacherId);
-    const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+    const subjectsRaw = await fetchAllSubjects();
     return subjectsRaw.map((s: any) => ({
-      subject_id: s['รหัสรายวิชา'],
-      name: s['ชื่อรายวิชา'],
-      class_id: s['ห้องเรียน']
+      subject_id: String(s['รหัสรายวิชา'] || 'SUBJ-01'),
+      name: String(s['ชื่อรายวิชา'] || ''),
+      class_id: String(s['ห้องเรียน'] || '')
     }));
   },
 
@@ -398,7 +413,7 @@ export const api = {
     if (USE_MOCK) return mockApi.getTeacherDashboard(subjectName, classId);
     
     // 1. Fetch master list to find the correct Sheet ID and Subject Name
-    const subjectsRaw = await fetchSheetData(SHEET_IDS[0], 'รวมรายวิชา');
+    const subjectsRaw = await fetchAllSubjects();
     const subjectRow = subjectsRaw.find((s: any) => s['ชื่อรายวิชา'] === subjectName && s['ห้องเรียน'] === classId);
     
     if (!subjectRow) throw new Error('ไม่พบข้อมูลรายวิชานี้ในชีตรวม');
