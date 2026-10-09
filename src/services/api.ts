@@ -21,7 +21,11 @@ const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId:
     try {
       const data = await fetchSheetData(targetSheetId, tab);
       if (data && data.length > 0) {
-        return data;
+        // Validate it's the actual tab and not Google's default "รวมรายวิชา" fallback
+        const firstRow = data[0];
+        if (firstRow['รหัสรายวิชา'] === undefined) {
+          return data;
+        }
       }
     } catch (e) {
       // try next
