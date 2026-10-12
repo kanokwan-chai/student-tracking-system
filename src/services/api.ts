@@ -5,21 +5,39 @@ import { fetchSheetData, SHEET_IDS } from './googleSheets';
 // To switch to LIVE Google Sheets, change this flag to false
 const USE_MOCK = false;
 
+// Helper to map room or code to the correct Sheet ID
+const getSheetIdForRoom = (roomOrCode?: string) => {
+  if (!roomOrCode) return SHEET_IDS[0];
+  const str = String(roomOrCode).trim().toLowerCase();
+  if (str.includes('r01') || str.includes('it.1/1') || str.includes('it')) return SHEET_IDS[0];
+  if (str.includes('r02') || str.includes('ธคก.1/1') || str.includes('ธคก')) return SHEET_IDS[3];
+  if (str.includes('r03') || str.includes('กต.2/1') || str.includes('1/3')) return SHEET_IDS[1];
+  if (str.includes('r04') || str.includes('กต.2/2') || str.includes('1/4')) return SHEET_IDS[2];
+  return SHEET_IDS[0];
+};
+
 // Helper to fetch subject specific tab with candidate names
 const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId: string, tabSuffix: string) => {
   const roomShort = (classId || '').replace('ปวช.', '').trim();
   const roomEscaped = roomShort.replace('/', '\\/');
+  const resolvedSheetId = targetSheetId || getSheetIdForRoom(classId);
+
   const candidates = [
     `${subjName}_${tabSuffix}`,
     `${subjName}_${roomShort}_${tabSuffix}`,
     `${subjName}_${roomEscaped}_${tabSuffix}`,
     `${subjName}_${classId}_${tabSuffix}`,
+    `${subjName}_1/3_${tabSuffix}`,
+    `${subjName}_1\\/3_${tabSuffix}`,
+    `${subjName}_1/4_${tabSuffix}`,
+    `${subjName}_1\\/4_${tabSuffix}`,
     tabSuffix
   ];
 
+  // First try the resolved target sheet
   for (const tab of candidates) {
     try {
-      const data = await fetchSheetData(targetSheetId, tab);
+      const data = await fetchSheetData(resolvedSheetId, tab);
       if (data && data.length > 0) {
         // Validate it's the actual tab and not Google's default "รวมรายวิชา" fallback
         const firstRow = data[0];
@@ -31,6 +49,25 @@ const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId:
       // try next
     }
   }
+
+  // Fallback: If not found in resolved sheet, search across all other sheets
+  for (const otherId of SHEET_IDS) {
+    if (otherId === resolvedSheetId) continue;
+    for (const tab of candidates) {
+      try {
+        const data = await fetchSheetData(otherId, tab);
+        if (data && data.length > 0) {
+          const firstRow = data[0];
+          if (firstRow['รหัสรายวิชา'] === undefined) {
+            return data;
+          }
+        }
+      } catch (e) {
+        // try next
+      }
+    }
+  }
+
   return [];
 };
 
@@ -202,9 +239,9 @@ export const api = {
     let attendanceDetails: { subject: string; date: string; status: string }[] = [];
 
     await Promise.all(mySubjects.map(async (subj: any) => {
-      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || SHEET_IDS[0];
-      const subjName = subj['ชื่อรายวิชา'];
       const classId = subj['ห้องเรียน'] || studentClass;
+      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || getSheetIdForRoom(classId);
+      const subjName = subj['ชื่อรายวิชา'];
       
       const [attendances, assignments, grades] = await Promise.all([
         fetchSubjectTab(targetSheetId, subjName, classId, 'เข้าเรียน'),
@@ -292,9 +329,9 @@ export const api = {
     );
 
     const results = await Promise.all(mySubjects.map(async (subj: any) => {
-      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || SHEET_IDS[0];
-      const subjName = subj['ชื่อรายวิชา'];
       const classId = subj['ห้องเรียน'] || studentClass;
+      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || getSheetIdForRoom(classId);
+      const subjName = subj['ชื่อรายวิชา'];
 
       const grades = await fetchSubjectTab(targetSheetId, subjName, classId, 'ตัดเกรด');
       const myGrade = grades.find((g: any) => String(g['รหัสนักเรียน'] || g['student_id'] || '').trim() === String(studentId).trim()) || {};
@@ -333,9 +370,9 @@ export const api = {
     let assignmentsList: any[] = [];
     
     await Promise.all(mySubjects.map(async (subj: any) => {
-      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || SHEET_IDS[0];
-      const subjName = subj['ชื่อรายวิชา'];
       const classId = subj['ห้องเรียน'] || studentClass;
+      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || getSheetIdForRoom(classId);
+      const subjName = subj['ชื่อรายวิชา'];
       
       const tasks = await fetchSubjectTab(targetSheetId, subjName, classId, 'คะแนนเก็บรายหน่วย');
       const myTasks = tasks.find((t: any) => String(t['รหัสนักเรียน'] || t['student_id'] || '').trim() === String(studentId).trim());
@@ -391,9 +428,9 @@ export const api = {
     let quizzesResult: any[] = [];
 
     await Promise.all(mySubjects.map(async (subj: any) => {
-      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || SHEET_IDS[0];
-      const subjName = subj['ชื่อรายวิชา'];
       const classId = subj['ห้องเรียน'] || studentClass;
+      const targetSheetId = subj['Sheet ID'] || subj['กระดาษคำนวณ'] || subj['Link'] || getSheetIdForRoom(classId);
+      const subjName = subj['ชื่อรายวิชา'];
 
       const quizData = await fetchSubjectTab(targetSheetId, subjName, classId, 'คะแนนสอบย่อย 20 %');
       const myRow = quizData.find((q: any) => String(q['รหัสนักเรียน'] || q['student_id'] || '').trim() === String(studentId).trim());
@@ -451,7 +488,7 @@ export const api = {
     
     if (!subjectRow) throw new Error('ไม่พบข้อมูลรายวิชานี้ในชีตรวม');
 
-    const targetSheetId = subjectRow['Sheet ID'] || subjectRow['ลิงก์'] || subjectRow['Link'] || SHEET_IDS[0];
+    const targetSheetId = subjectRow['Sheet ID'] || subjectRow['ลิงก์'] || subjectRow['Link'] || getSheetIdForRoom(classId);
 
     const [grades, attendances, assignments, masterStudents] = await Promise.all([
       fetchSubjectTab(targetSheetId, subjectName, classId, 'ตัดเกรด'),

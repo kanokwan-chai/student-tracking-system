@@ -64,7 +64,7 @@ export async function fetchSheetData(sheetId: string, sheetName: string) {
       const rowData: Record<string, any> = {};
       row.c.forEach((cell: any, index: number) => {
         if (headers[index] && headers[index] !== '') {
-          rowData[headers[index]] = cell && cell.v !== null ? cell.v : null;
+          rowData[headers[index]] = cell && cell.v !== null ? (cell.f !== undefined ? cell.f : cell.v) : null;
         }
       });
       return rowData;
