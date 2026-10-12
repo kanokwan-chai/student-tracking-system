@@ -1,10 +1,14 @@
 // src/services/googleSheets.ts
-export const SHEET_IDS = [
+export const MASTER_SHEET_ID = '1-812_fXKZEg3L9SVsi6zx57q5-H6sVRnE5zxKuGrNp0';
+
+export const DEFAULT_SHEET_IDS = [
   '12cYG8i_Vw5rpRvcOa29FeygMlhg89nbqywJEl2_HFzI',
+  '1QlP2TRi35lgjOfysd732fiNe8w3x0ebBELFOQhy-URg',
   '1N0uBII7iwSNaQcV_OWeBFE0qZ1hMya4f3791hzydOCY',
-  '1NVHwCFyNJ9g7HeXB37aJuBbgGmgeZ6dApxEcTJZCiwY',
-  '1QlP2TRi35lgjOfysd732fiNe8w3x0ebBELFOQhy-URg'
+  '1NVHwCFyNJ9g7HeXB37aJuBbgGmgeZ6dApxEcTJZCiwY'
 ];
+
+export let SHEET_IDS = [...DEFAULT_SHEET_IDS];
 
 export async function fetchSheetData(sheetId: string, sheetName: string) {
   const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(sheetName)}`;

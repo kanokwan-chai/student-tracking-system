@@ -1,18 +1,48 @@
 import { mockApi } from './mockData';
 import type { Role } from '../models/types';
-import { fetchSheetData, SHEET_IDS } from './googleSheets';
+import { fetchSheetData, SHEET_IDS, MASTER_SHEET_ID } from './googleSheets';
 
 // To switch to LIVE Google Sheets, change this flag to false
 const USE_MOCK = false;
 
+// Helper to extract Sheet ID from Google Sheets URL
+const extractSheetId = (link: string) => {
+  if (!link) return '';
+  const match = String(link).match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : String(link).trim();
+};
+
+// Helper to normalize room strings for comparison
+const normalizeRoom = (room: string) => {
+  if (!room) return '';
+  return String(room)
+    .replace(/^ปวช\./i, '')
+    .replace(/\s+/g, '')
+    .trim()
+    .toLowerCase();
+};
+
+// Helper to compare room names robustly and strictly
+const isSameRoom = (room1: string, room2: string) => {
+  if (!room1 || !room2) return false;
+  return normalizeRoom(room1) === normalizeRoom(room2);
+};
+
 // Helper to map room or code to the correct Sheet ID
-const getSheetIdForRoom = (roomOrCode?: string) => {
+const getSheetIdForRoom = (roomOrCode?: string, subjList?: any[]) => {
   if (!roomOrCode) return SHEET_IDS[0];
+  if (subjList && subjList.length > 0) {
+    const found = subjList.find((s: any) => 
+      isSameRoom(s['ห้องเรียน'], roomOrCode) || 
+      isSameRoom(s['รหัสห้องเรียน'], roomOrCode)
+    );
+    if (found && found._sheetId) return found._sheetId;
+  }
   const str = String(roomOrCode).trim().toLowerCase();
   if (str.includes('r01') || str.includes('it.1/1') || str.includes('it')) return SHEET_IDS[0];
-  if (str.includes('r02') || str.includes('ธคก.1/1') || str.includes('ธคก')) return SHEET_IDS[3];
-  if (str.includes('r03') || str.includes('กต.2/1') || str.includes('1/3')) return SHEET_IDS[1];
-  if (str.includes('r04') || str.includes('กต.2/2') || str.includes('1/4')) return SHEET_IDS[2];
+  if (str.includes('r02') || str.includes('ธคก.1/1') || str.includes('ธคก')) return SHEET_IDS[1] || SHEET_IDS[0];
+  if (str.includes('r03') || str.includes('กต.2/1') || str.includes('1/3')) return SHEET_IDS[2] || SHEET_IDS[0];
+  if (str.includes('r04') || str.includes('กต.2/2') || str.includes('1/4')) return SHEET_IDS[3] || SHEET_IDS[0];
   return SHEET_IDS[0];
 };
 
@@ -39,9 +69,9 @@ const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId:
     try {
       const data = await fetchSheetData(resolvedSheetId, tab);
       if (data && data.length > 0) {
-        // Validate it's the actual tab and not Google's default "รวมรายวิชา" fallback
+        // Validate it's the actual tab and not Google's default fallback
         const firstRow = data[0];
-        if (firstRow['รหัสรายวิชา'] === undefined) {
+        if (firstRow['รหัสรายวิชา'] === undefined && firstRow['ลิงก์ชีตคะแนน'] === undefined) {
           return data;
         }
       }
@@ -58,7 +88,7 @@ const fetchSubjectTab = async (targetSheetId: string, subjName: string, classId:
         const data = await fetchSheetData(otherId, tab);
         if (data && data.length > 0) {
           const firstRow = data[0];
-          if (firstRow['รหัสรายวิชา'] === undefined) {
+          if (firstRow['รหัสรายวิชา'] === undefined && firstRow['ลิงก์ชีตคะแนน'] === undefined) {
             return data;
           }
         }
@@ -94,23 +124,36 @@ const isTaskKey = (key: string) => {
   return true;
 };
 
-// Helpers to query across all configured Google Sheet IDs
-const fetchMasterStudents = async () => {
-  const allResults = await Promise.all(
-    SHEET_IDS.map(id => fetchSheetData(id, 'รวมรายชื่อนักเรียน').catch(() => []))
-  );
-  const flat = allResults.flat();
-  const uniqueMap = new Map<string, any>();
-  flat.forEach(item => {
-    const sid = String(item['รหัสนักเรียน'] || item['student_id'] || '').trim();
-    if (sid && !uniqueMap.has(sid)) {
-      uniqueMap.set(sid, item);
-    }
-  });
-  return Array.from(uniqueMap.values());
-};
-
+// Helpers to query across configured Master Sheet and Subject Google Sheets
 const fetchAllSubjects = async () => {
+  // 1. Fetch from Master Control Sheet (tab 'จัดการระบบ' or 'รวมรายวิชา')
+  try {
+    let masterRows = await fetchSheetData(MASTER_SHEET_ID, 'จัดการระบบ');
+    if (!masterRows || masterRows.length === 0) {
+      masterRows = await fetchSheetData(MASTER_SHEET_ID, 'รวมรายวิชา');
+    }
+
+    if (masterRows && masterRows.length > 0) {
+      const parsed = masterRows
+        .filter((row: any) => row['ชื่อรายวิชา'] || row['รหัสรายวิชา'])
+        .map((row: any) => {
+          const link = row['ลิงก์ชีตคะแนน'] || row['Link'] || row['ลิงก์'] || '';
+          const sheetId = extractSheetId(link);
+          return {
+            ...row,
+            _sheetId: sheetId
+          };
+        });
+
+      if (parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching master sheet, fallback to individual sheets:', err);
+  }
+
+  // Fallback to legacy behavior if master sheet is unreachable
   const allResults = await Promise.all(
     SHEET_IDS.map(id => fetchSheetData(id, 'รวมรายวิชา').catch(() => []))
   );
@@ -127,20 +170,26 @@ const fetchAllSubjects = async () => {
   return Array.from(uniqueMap.values());
 };
 
-// Helper to normalize room strings for comparison
-const normalizeRoom = (room: string) => {
-  if (!room) return '';
-  return String(room)
-    .replace(/^ปวช\./i, '')
-    .replace(/\s+/g, '')
-    .trim()
-    .toLowerCase();
-};
+const fetchMasterStudents = async () => {
+  const subjects = await fetchAllSubjects().catch(() => []);
+  const sheetIds = Array.from(new Set(
+    subjects.map((s: any) => s._sheetId).filter(Boolean)
+  )) as string[];
+  
+  const targetIds = sheetIds.length > 0 ? sheetIds : SHEET_IDS;
 
-// Helper to compare room names robustly and strictly
-const isSameRoom = (room1: string, room2: string) => {
-  if (!room1 || !room2) return false;
-  return normalizeRoom(room1) === normalizeRoom(room2);
+  const allResults = await Promise.all(
+    targetIds.map(id => fetchSheetData(id, 'รวมรายชื่อนักเรียน').catch(() => []))
+  );
+  const flat = allResults.flat();
+  const uniqueMap = new Map<string, any>();
+  flat.forEach(item => {
+    const sid = String(item['รหัสนักเรียน'] || item['student_id'] || '').trim();
+    if (sid && !uniqueMap.has(sid)) {
+      uniqueMap.set(sid, item);
+    }
+  });
+  return Array.from(uniqueMap.values());
 };
 
 export const api = {
@@ -656,5 +705,9 @@ export const api = {
       },
       students: studentsData
     };
+  },
+
+  getMasterSettings: async () => {
+    return await fetchAllSubjects();
   }
 };
